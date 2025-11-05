@@ -27,7 +27,8 @@ public class MainGUI extends JFrame {
     private final JTextArea suggestionsArea = new JTextArea(6, 36);
 
     private final DefaultTableModel historyModel = new DefaultTableModel(
-            new String[]{"#", "Password (masked)", "Score", "Verdict", "Time"}, 0);
+            new String[]{"#", "Password (masked)", "Password (raw)", "Score", "Verdict", "Time"}, 0);
+
     private final JTable historyTable = new JTable(historyModel);
     private final SecureRandom rnd = new SecureRandom();
 
@@ -84,17 +85,15 @@ public class MainGUI extends JFrame {
         historyTable.getColumnModel().getColumn(0).setMaxWidth(40);
 
         JScrollPane histScroll = new JScrollPane(historyTable);
-        histScroll.setPreferredSize(new Dimension(540, 140));
+        histScroll.setPreferredSize(new Dimension(540, 160));
 
         // === History Panel ===
         JPanel histPanel = new JPanel(new BorderLayout());
         histPanel.setBorder(BorderFactory.createTitledBorder("History"));
         histPanel.add(histScroll, BorderLayout.CENTER);
 
-        // Bottom panel under history for export + visibility controls
+        // bottom area with export button
         JPanel bottomHistPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
-        JCheckBox showPasswords = new JCheckBox("Show passwords in table");
-        bottomHistPanel.add(showPasswords);
         bottomHistPanel.add(exportBtn);
         histPanel.add(bottomHistPanel, BorderLayout.SOUTH);
 
@@ -127,27 +126,25 @@ public class MainGUI extends JFrame {
         // Pressing Enter logs the current password
         pwdField.addActionListener(e -> commitCurrentPassword());
 
-        // === Show/Hide Password Column in Table ===
-        showPasswords.addActionListener(e -> {
-            boolean visible = showPasswords.isSelected();
-            TableColumnModel colModel = historyTable.getColumnModel();
-            try {
-                if (visible) {
-                    // add raw password column (index 2)
-                    if (hiddenPasswordColumn != null) {
-                        colModel.addColumn(hiddenPasswordColumn);
-                        colModel.moveColumn(colModel.getColumnCount() - 1, 2);
-                        hiddenPasswordColumn = null;
-                    }
-                } else {
-                    // hide raw password column
-                    if (hiddenPasswordColumn == null && colModel.getColumnCount() > 2) {
-                        hiddenPasswordColumn = colModel.getColumn(2);
-                        colModel.removeColumn(hiddenPasswordColumn);
+        // === Inline reveal: click to toggle mask/unmask password in table ===
+        historyTable.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mouseClicked(MouseEvent e) {
+                int row = historyTable.rowAtPoint(e.getPoint());
+                int col = historyTable.columnAtPoint(e.getPoint());
+
+                // only respond if clicking the masked password column
+                if (col == 1 && row >= 0) {
+                    String masked = historyModel.getValueAt(row, 1).toString();
+                    String raw = historyModel.getValueAt(row, 2).toString();
+
+                    // toggle
+                    if (masked.contains("*")) {
+                        historyModel.setValueAt(raw, row, 1);
+                    } else {
+                        historyModel.setValueAt(maskForHistory(raw), row, 1);
                     }
                 }
-            } catch (Exception ex) {
-                System.err.println("Column toggle error: " + ex.getMessage());
             }
         });
     }
@@ -195,9 +192,9 @@ public class MainGUI extends JFrame {
         String time = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(new Date());
 
         historyModel.addRow(new Object[]{
-                historyModel.getRowCount() + 1, // #
-                masked,                         // masked display
-                pwd,                            // raw password (hidden)
+                historyModel.getRowCount() + 1,
+                masked,
+                pwd,
                 score,
                 verdict,
                 time
